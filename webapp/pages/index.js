@@ -120,25 +120,27 @@ export default function Home() {
 
       const data = await res.json()
 
-      // If backend did not have SIDA attached directly, attempt direct client-side SIDA query
+      // If backend used cloud fallback, check if local SIDA engine is active on localhost
       let sidaData = data.sida
-      if (!sidaData) {
+      if (!sidaData || sidaData.isCloudFallback) {
         try {
           const directForm = new FormData()
           directForm.append('file', fileToUpload)
-          directForm.append('mode', 'description')
+          directForm.append('mode', 'detection')
           const directRes = await fetch('http://127.0.0.1:8000/api/predict', {
             method: 'POST',
             body: directForm,
           })
           if (directRes.ok) {
-            sidaData = await directRes.json()
+            const localResult = await directRes.json()
+            if (localResult && localResult.verdict) {
+              sidaData = localResult
+            }
           }
         } catch (clientErr) {
-          console.warn('Direct SIDA connection note:', clientErr.message)
+          // Local SIDA engine not running; continue with server forensic analysis
         }
       }
-
 
       setResult({
         blobUrl: data.url,
@@ -340,10 +342,12 @@ function getVerdictStyle(verdict) {
   const v = verdict.toLowerCase()
   if (v.includes('tamper') || v.includes('fake')) {
     return { ...base, color: '#f87171', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)' }
-  } else if (v.includes('synthetic')) {
+  } else if (v.includes('synthetic') || v.includes('ai') || v.includes('gen')) {
     return { ...base, color: '#c084fc', background: 'rgba(192, 132, 252, 0.15)', border: '1px solid rgba(192, 132, 252, 0.4)' }
-  } else {
+  } else if (v.includes('real') || v.includes('authentic')) {
     return { ...base, color: '#34d399', background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.4)' }
+  } else {
+    return { ...base, color: '#fbbf24', background: 'rgba(251, 191, 36, 0.15)', border: '1px solid rgba(251, 191, 36, 0.4)' }
   }
 }
 
