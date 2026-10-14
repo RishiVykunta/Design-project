@@ -109,6 +109,20 @@ def image_to_base64(img_bgr, ext=".jpg"):
         return ""
     return base64.b64encode(buffer).decode("utf-8")
 
+def compute_ela_image(image_bgr, quality=90, scale=18):
+    """Computes Error Level Analysis (ELA) heatmap to detect compression/splicing boundaries."""
+    try:
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+        _, enc = cv2.imencode('.jpg', image_bgr, encode_param)
+        dec = cv2.imdecode(enc, cv2.IMREAD_COLOR)
+        diff = cv2.absdiff(image_bgr, dec)
+        ela = np.clip(diff.astype(np.float32) * scale, 0, 255).astype(np.uint8)
+        ela_gray = cv2.cvtColor(ela, cv2.COLOR_BGR2GRAY)
+        ela_color = cv2.applyColorMap(ela_gray, cv2.COLORMAP_JET)
+        return ela_color
+    except Exception:
+        return image_bgr
+
 @app.get("/api/samples")
 def list_samples():
     sample_list = []
@@ -202,6 +216,8 @@ async def run_predict(
                                 ov_b64 = image_to_base64(o_img, ext=".jpg")
                         orig_b64 = image_to_base64(image_bgr, ext=".jpg")
                         rec_verdict = record.get("verdict", "Tampered")
+                        ela_img = compute_ela_image(image_bgr)
+                        ela_b64 = image_to_base64(ela_img, ext=".jpg")
                         return JSONResponse({
                             "verdict": rec_verdict,
                             "confidence": 0.98 if rec_verdict != "Real" else 0.99,
@@ -209,6 +225,7 @@ async def run_predict(
                             "original_image": f"data:image/jpeg;base64,{orig_b64}",
                             "mask_image": f"data:image/png;base64,{mask_b64}" if mask_b64 else None,
                             "overlay_image": f"data:image/jpeg;base64,{ov_b64}" if ov_b64 else None,
+                            "ela_image": f"data:image/jpeg;base64,{ela_b64}",
                             "dimensions": f"{orig_w}x{orig_h}",
                             "latency_sec": 0.05,
                             "device": "PRECOMPUTED (SIDA-7B + SAM ViT-H Benchmark)"
@@ -319,6 +336,8 @@ async def run_predict(
             confidence = 0.88
 
     orig_b64 = image_to_base64(image_bgr, ext=".jpg")
+    ela_img = compute_ela_image(image_bgr)
+    ela_b64 = image_to_base64(ela_img, ext=".jpg")
     total_time = time.time() - t_start
 
     return JSONResponse({
@@ -328,6 +347,7 @@ async def run_predict(
         "original_image": f"data:image/jpeg;base64,{orig_b64}",
         "mask_image": f"data:image/png;base64,{mask_b64}",
         "overlay_image": f"data:image/jpeg;base64,{overlay_b64}",
+        "ela_image": f"data:image/jpeg;base64,{ela_b64}",
         "dimensions": f"{orig_w}x{orig_h}",
         "latency_sec": round(total_time, 2),
         "device": device.upper()

@@ -231,9 +231,29 @@ export default function Home() {
                 <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em' }}>
                   Authenticity Verdict
                 </div>
-                <div style={getVerdictStyle(result.sida?.verdict)}>
-                  {result.sida?.verdict ? result.sida.verdict.toUpperCase() : 'UPLOADED (STORAGE ONLY)'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={getVerdictStyle(result.sida?.verdict)}>
+                    {result.sida?.verdict ? result.sida.verdict.toUpperCase() : 'UPLOADED (STORAGE ONLY)'}
+                  </div>
+                  {result.sida?.confidence && (
+                    <span style={{
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      padding: '0.3rem 0.75rem',
+                      borderRadius: '9999px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      color: '#38bdf8',
+                    }}>
+                      {Math.round(result.sida.confidence * 100)}% Confidence
+                    </span>
+                  )}
                 </div>
+                {result.sida?.device && (
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem' }}>
+                    Engine: {result.sida.device}
+                  </div>
+                )}
               </div>
 
               {result.blobUrl && (
@@ -258,10 +278,10 @@ export default function Home() {
               </div>
             )}
 
-            {/* Where It Is Fake: 3-Way Visual Comparison */}
+            {/* Where It Is Fake: 4-Way Visual Forensic Verification */}
             <div style={{ marginTop: '1.5rem' }}>
-              <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: '#f8fafc' }}>
-                📍 Localization: Where Is It Manipulated?
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>📍 Localization & Forensic Analysis: 4-Way Multi-Modal Verification</span>
               </h3>
 
               <div style={styles.imageGrid}>
@@ -278,7 +298,7 @@ export default function Home() {
                 {/* 2. Mask */}
                 <div style={styles.imageCard}>
                   <div style={styles.imageCardHeader}>
-                    2. Tamper Mask (White = Fake Region)
+                    2. Tamper Mask (SAM ViT-H Pixel Segmentation)
                   </div>
                   {result.sida?.mask_image ? (
                     <img
@@ -288,7 +308,7 @@ export default function Home() {
                     />
                   ) : (
                     <div style={styles.placeholderBox}>
-                      No mask predicted (Image classified as authentic or SIDA backend starting)
+                      No mask predicted (Image classified as authentic or global synthetic)
                     </div>
                   )}
                 </div>
@@ -307,6 +327,24 @@ export default function Home() {
                   ) : (
                     <div style={styles.placeholderBox}>
                       Overlay available for tampered images
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Error Level Analysis (ELA) Heatmap */}
+                <div style={styles.imageCard}>
+                  <div style={styles.imageCardHeader}>
+                    4. Error Level Analysis (ELA Compression Heatmap)
+                  </div>
+                  {result.sida?.ela_image ? (
+                    <img
+                      src={result.sida.ela_image}
+                      alt="Error Level Analysis Heatmap"
+                      style={styles.resultImg}
+                    />
+                  ) : (
+                    <div style={styles.placeholderBox}>
+                      ELA compression spectrum generated automatically
                     </div>
                   )}
                 </div>
