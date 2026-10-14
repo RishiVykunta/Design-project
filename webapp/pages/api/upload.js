@@ -104,43 +104,22 @@ export default async function handler(req, res) {
       console.warn('Could not connect to SIDA backend:', sidaErr.message);
     }
 
-    // Cloud fallback: If the 16GB local PyTorch server is not directly tunneled to Vercel,
-    // analyze image headers, EXIF camera signatures, and raster properties.
+    // If running on Vercel cloud where the 16GB local PyTorch server is not tunneled,
+    // inform the user clearly to use the local endpoint for true SIDA-7B deep learning inference.
     if (!sidaResult) {
-      const lowerName = (file.originalname || '').toLowerCase();
-      let verdict = 'Real';
-      let explanation = 'Frequency spectrum analysis and sensor noise distribution are consistent with authentic unmanipulated media.';
-      let isTampered = false;
-
-      // 1. Explicit tamper check
-      if (lowerName.includes('tamper') || lowerName.includes('fake') || lowerName.includes('splice') || lowerName.includes('inpaint') || lowerName.includes('edit') || lowerName.includes('figure')) {
-        verdict = 'Tampered';
-        explanation = 'Forensic cross-attention analysis detected localized boundary discontinuities, noise variance mismatches, and inpainting artifacts.';
-        isTampered = true;
-      } 
-      // 2. Explicit generative AI check
-      else if (lowerName.includes('synthetic') || lowerName.includes('ai') || lowerName.includes('generated') || lowerName.includes('dall') || lowerName.includes('midjourney') || lowerName.includes('diffusion')) {
-        verdict = 'Full Synthetic';
-        explanation = 'Diffusion latent smoothing and global semantic rendering inconsistencies indicate full AI generation.';
-      } 
-      // 3. Authentic screenshot or camera capture
-      else if (lowerName.includes('screenshot') || lowerName.includes('screen') || lowerName.includes('capture') || lowerName.includes('img') || lowerName.includes('photo') || lowerName.includes('dsc')) {
-        verdict = 'Real';
-        explanation = 'Uniform raster grid, authentic sensor noise, and lack of synthetic boundary artifacts confirm unmanipulated original media.';
-      }
-
       sidaResult = {
-        verdict,
-        confidence: 0.96,
-        text_output: `<s> [CLS] This image is classified as ${verdict.toLowerCase()}. ${explanation}${isTampered ? ' [SEG] A mask highlighting the tampered region is provided.' : ''}`,
+        verdict: 'Cloud Mode (Model on Localhost)',
+        confidence: 0.0,
+        text_output: 'The 16GB SIDA-7B deep learning neural network is currently running on your local machine. To get 100% genuine AI classification and pixel-level SAM ViT-H tamper masks, open http://localhost:3000 or http://127.0.0.1:8000 in your browser.',
         original_image: blobUrl,
-        mask_image: isTampered ? blobUrl : null,
-        overlay_image: isTampered ? blobUrl : null,
+        mask_image: null,
+        overlay_image: null,
         dimensions: 'Original Size',
-        latency_sec: 0.12,
-        device: 'SIDA-7B Multimodal Architecture (CVPR 2025)',
+        latency_sec: 0.01,
+        device: 'Vercel Cloud (SIDA Engine Running Locally)',
       };
     }
+
 
 
     return res.status(200).json({
