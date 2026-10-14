@@ -779,4 +779,6 @@ HTML_CONTENT = """<!DOCTYPE html>
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False)
+    print("Starting SIDA FastAPI Server on http://127.0.0.1:8000 ...", flush=True)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+
