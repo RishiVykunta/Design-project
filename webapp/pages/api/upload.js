@@ -2,9 +2,12 @@ import { put } from '@vercel/blob';
 import multer from 'multer';
 import { Pool } from 'pg';
 
-// Configure Multer to store file in memory
+// Configure Multer to store file in memory with 4.5MB limit (Vercel payload constraint)
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 4.5 * 1024 * 1024 },
+});
 
 // Initialize Neon PostgreSQL pool
 const pool = new Pool({
@@ -25,12 +28,19 @@ export default async function handler(req, res) {
 
   try {
     // 1. Parse multipart form data
-    await new Promise((resolve, reject) => {
+    const parseError = await new Promise((resolve) => {
       upload.single('image')(req, res, (err) => {
-        if (err) reject(err);
-        else resolve();
+        resolve(err || null);
       });
     });
+
+    if (parseError) {
+      if (parseError.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Image exceeds Vercel 4.5MB limit. Please upload a smaller or compressed image.' });
+      }
+      return res.status(400).json({ error: `Upload error: ${parseError.message}` });
+    }
+
 
     const file = req.file;
     if (!file) {

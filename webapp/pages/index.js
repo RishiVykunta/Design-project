@@ -1,6 +1,57 @@
 import Head from 'next/head'
 import { useState } from 'react'
 
+// Automatically compress and resize images over 2MB client-side to prevent Vercel 4.5MB limit
+async function compressImageIfNeeded(inputFile) {
+  if (!inputFile || inputFile.size <= 2 * 1024 * 1024) {
+    return inputFile;
+  }
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1280;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], inputFile.name.replace(/\.[^/.]+$/, ".jpg"), {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(inputFile);
+            }
+          },
+          'image/jpeg',
+          0.85
+        );
+      };
+      img.onerror = () => resolve(inputFile);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(inputFile);
+    reader.readAsDataURL(inputFile);
+  });
+}
+
 export default function Home() {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -36,30 +87,45 @@ export default function Home() {
     }
 
     setLoading(true)
-    setStatusMessage('Uploading image & analyzing with SIDA AI (CVPR 2025)...')
+    setStatusMessage('Optimizing image & preparing upload...')
     setResult(null)
 
     try {
+      // 1. Compress image client-side if > 2MB to ensure it never exceeds Vercel 4.5MB threshold
+      const fileToUpload = await compressImageIfNeeded(file)
+      setStatusMessage('Uploading to SIDA AI engine...')
+
       const form = new FormData()
-      form.append('image', file)
+      form.append('image', fileToUpload)
 
       const res = await fetch('/api/upload', {
         method: 'POST',
         body: form,
       })
 
-      const data = await res.json()
-
+      // 2. Safe check before reading body
       if (!res.ok) {
-        throw new Error(data.error || 'Upload failed')
+        const errorText = await res.text()
+        let friendlyErr = errorText
+        try {
+          const errObj = JSON.parse(errorText)
+          friendlyErr = errObj.error || errObj.message || errorText
+        } catch (_) {}
+
+        if (res.status === 413 || friendlyErr.includes('Request Entity Too Large') || friendlyErr.includes('413')) {
+          throw new Error('Image exceeds Vercel 4.5MB payload limit. Please try a smaller image.')
+        }
+        throw new Error(friendlyErr || `Upload failed with HTTP status ${res.status}`)
       }
+
+      const data = await res.json()
 
       // If backend did not have SIDA attached directly, attempt direct client-side SIDA query
       let sidaData = data.sida
       if (!sidaData) {
         try {
           const directForm = new FormData()
-          directForm.append('file', file)
+          directForm.append('file', fileToUpload)
           directForm.append('mode', 'description')
           const directRes = await fetch('http://127.0.0.1:8000/api/predict', {
             method: 'POST',
@@ -72,6 +138,7 @@ export default function Home() {
           console.warn('Direct SIDA connection note:', clientErr.message)
         }
       }
+
 
       setResult({
         blobUrl: data.url,
